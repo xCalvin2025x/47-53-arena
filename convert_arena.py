@@ -106,12 +106,13 @@ TILE_CHARS = set("#.PRFC+WwLl gT~,".replace(" ", ""))
 # ---- 生成 v0.47 格式 ---------------------------------------------------------
 
 def convert(arena, anchor_level=0, fill_empty="#", fill_ground="g",
-            center=True, offset=None, verbose=True):
+            fill_below="#", center=True, offset=None, verbose=True):
     """
     arena:        Arena 对象
     anchor_level: 竞技场自身第几层放到 v0.47 的 Z=0（地面层）
-    fill_empty:   Z != 0 的背景字符（默认 '#' 空地）
-    fill_ground:  Z == 0 背景字符（默认 'g' 草地，和竞技场外圈无缝衔接）
+    fill_empty:   地面层以上的背景字符（默认 '#' 空地 = 天空）
+    fill_ground:  地面层的背景字符（默认 'g' 草地，和竞技场外圈无缝衔接）
+    fill_below:   地面层以下的背景字符（默认 '#' 空腔；'P' = 实心岩壁）
     center:       True = 居中放置
     offset:       (x, y) 左上角，给定则忽略 center
     """
@@ -125,10 +126,16 @@ def convert(arena, anchor_level=0, fill_empty="#", fill_ground="g",
     else:
         ox, oy = offset
 
-    # 画布：先填背景
+    # 画布：先填背景。地面层 = 竞技场第 0 层落到的那个 Z
+    ground_z = -anchor_level
     grid = {}
     for z in range(DF47_ZMIN, DF47_ZMAX + 1):
-        row = fill_ground if z == 0 else fill_empty
+        if z == ground_z:
+            row = fill_ground
+        elif z < ground_z:
+            row = fill_below
+        else:
+            row = fill_empty
         grid[z] = [[row] * DF47_W for _ in range(DF47_H)]
 
     # 竞技场自身第 i 层 -> Z = i - anchor_level
@@ -156,6 +163,10 @@ def convert(arena, anchor_level=0, fill_empty="#", fill_ground="g",
     if verbose and (w > DF47_W or h > DF47_H):
         print("注意：源图 %dx%d 大于 144x144，超出部分会被裁掉（FOREST 就是这种）。"
               % (w, h), file=sys.stderr)
+    if verbose and ground_z != 0:
+        print("注意：地面层在 Z=%d，而 v0.47 进竞技场时固定从 Z=0 开图，"
+              "进图后需要手动下降 %d 层才看得到场地。" % (ground_z, abs(ground_z)),
+              file=sys.stderr)
     return grid, ox, oy
 
 
@@ -241,7 +252,9 @@ def main(argv=None):
     ap.add_argument("--anchor", type=int, default=0,
                     help="竞技场第几层放到 Z=0（默认 0，即带地形的表层）")
     ap.add_argument("--fill", default="g",
-                    help="Z=0 时竞技场以外的填充字符（默认 g 草地）")
+                    help="地面层场地以外的填充字符（默认 g 草地）")
+    ap.add_argument("--below", default="#",
+                    help="地面层以下整层的填充字符（默认 # 空腔；P = 实心岩壁）")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args(argv)
 
@@ -270,7 +283,8 @@ def main(argv=None):
             print("  " + p, file=sys.stderr)
         return 3
 
-    grid, ox, oy = convert(arena, anchor_level=args.anchor, fill_ground=args.fill)
+    grid, ox, oy = convert(arena, anchor_level=args.anchor, fill_ground=args.fill,
+                           fill_below=args.below)
     text = render_47(grid)
 
     out = args.out or ("47_%s.txt" % key.lower())
