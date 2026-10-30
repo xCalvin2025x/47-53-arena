@@ -106,7 +106,7 @@ TILE_CHARS = set("#.PRFC+WwLl gT~,".replace(" ", ""))
 # ---- 生成 v0.47 格式 ---------------------------------------------------------
 
 def convert(arena, anchor_level=0, fill_empty="#", fill_ground="g",
-            fill_below="#", center=True, offset=None, verbose=True):
+            fill_below="#", center=True, offset=None, paste=True, verbose=True):
     """
     arena:        Arena 对象
     anchor_level: 竞技场自身第几层放到 v0.47 的 Z=0（地面层）
@@ -115,6 +115,7 @@ def convert(arena, anchor_level=0, fill_empty="#", fill_ground="g",
     fill_below:   地面层以下的背景字符（默认 '#' 空腔；'P' = 实心岩壁）
     center:       True = 居中放置
     offset:       (x, y) 左上角，给定则忽略 center
+    paste:        False = 不铺竞技场内容，只铺纯色地面（纯草地模式）
     """
     w, h = arena_dims(arena)
     if offset is None:
@@ -140,7 +141,7 @@ def convert(arena, anchor_level=0, fill_empty="#", fill_ground="g",
 
     # 竞技场自身第 i 层 -> Z = i - anchor_level
     dropped = []
-    for i, lv in enumerate(arena.levels):
+    for i, lv in enumerate(arena.levels if paste else []):
         z = i - anchor_level
         if z < DF47_ZMIN or z > DF47_ZMAX:
             if any(ch != "#" for r in lv for ch in r):
@@ -255,6 +256,8 @@ def main(argv=None):
                     help="地面层场地以外的填充字符（默认 g 草地）")
     ap.add_argument("--below", default="#",
                     help="地面层以下整层的填充字符（默认 # 空腔；P = 实心岩壁）")
+    ap.add_argument("--flat", action="store_true",
+                    help="纯色地面模式：不铺竞技场内容，整层只用 --fill 指定的字符")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args(argv)
 
@@ -284,7 +287,7 @@ def main(argv=None):
         return 3
 
     grid, ox, oy = convert(arena, anchor_level=args.anchor, fill_ground=args.fill,
-                           fill_below=args.below)
+                           fill_below=args.below, paste=not args.flat)
     text = render_47(grid)
 
     out = args.out or ("47_%s.txt" % key.lower())
@@ -293,8 +296,13 @@ def main(argv=None):
 
     w, h = arena_dims(arena)
     print("已生成 %s" % out)
-    print("  竞技场 %s (%dx%d) 放置在 144x144 的第 %d..%d 列 / 第 %d..%d 行，Z=%d..%d"
-          % (key, w, h, ox, ox + w - 1, oy, oy + h - 1, -args.anchor, -args.anchor + len(arena.levels) - 1))
+    if args.flat:
+        print("  纯色模式：%r 铺满整个 Z=%d 层，上面 %d 层全是空地 #"
+              % (args.fill, -args.anchor, DF47_ZMAX + args.anchor))
+    else:
+        print("  竞技场 %s (%dx%d) 放置在 144x144 的第 %d..%d 列 / 第 %d..%d 行，Z=%d..%d"
+              % (key, w, h, ox, ox + w - 1, oy, oy + h - 1, -args.anchor,
+                 -args.anchor + len(arena.levels) - 1))
     return 0
 
 

@@ -130,7 +130,26 @@ def main():
     # 九层剖面网格：Z=4 -> Z=-4
     layers(g0, 'preview_layers.png')
 
-    print('结果：', 'ok' if (ok1 and ok2) else 'CHECK FAILED')
+    ok3 = verify_flat('47_grass_only.txt', -4)
+    layers(grid_from_47('47_grass_only.txt'), 'preview_layers_grass.png')
+
+    print('结果：', 'ok' if (ok1 and ok2 and ok3) else 'CHECK FAILED')
+
+
+def verify_flat(path, ground_z=-4, ground='g', above='#'):
+    g = grid_from_47(path)
+    assert sorted(g) == list(range(-4, 5)), sorted(g)
+    for z in g:
+        assert len(g[z]) == 144 and all(len(r) == 144 for r in g[z]), z
+    ground_bad = sum(1 for r in g[ground_z] for c in r if c != ground)
+    above_bad = sum(1 for z in range(ground_z + 1, 5) for r in g[z] for c in r if c != above)
+    below_bad = sum(1 for z in range(-4, ground_z) for r in g[z] for c in r if c != '#')
+    print('校验 %s  (纯色层 Z=%d)' % (path, ground_z))
+    print('  层/尺寸: 9 层 144x144  OK')
+    print('  Z=%d 非 %r 字符: %d 格' % (ground_z, ground, ground_bad))
+    print('  上方非 %r 字符: %d 格' % (above, above_bad))
+    print('  下方非空字符: %d 格' % below_bad)
+    return ground_bad == 0 and above_bad == 0 and below_bad == 0
 
 
 def layers(g, out, cell=104, pad=10):
